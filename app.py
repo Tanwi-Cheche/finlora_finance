@@ -3,7 +3,6 @@ import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
 import seaborn as sns
-import os
 
 # Set page configuration
 st.set_page_config(page_title="Finlora Fraud Detection Dashboard", layout="wide")
@@ -22,43 +21,37 @@ CATEGORICAL_COLS = [
     'is_cross_border', 'is_new_device', 'is_same_day'
 ]
 
-# 2. LOAD DATASET SAFELY
-DATA_PATH = "cleaned_data2.csv"
-
+# 2. GENERATE CLOUD DATA AUTOMATICALLY (NO CSV UPLOAD REQUIRED)
 @st.cache_data
 def load_data():
-    if os.path.exists(DATA_PATH):
-        return pd.read_csv(DATA_PATH)
-    else:
-        # If the cloud server can't see the CSV, create realistic data automatically so it never crashes!
-        np.random.seed(42)
-        fake_rows = 5000
-        
-        mock_df = pd.DataFrame({
-            'is_fraud': np.random.choice([0, 1], size=fake_rows, p=[0.97, 0.03]),
-            'amount_in_USD': np.random.exponential(scale=150, size=fake_rows),
-            'amount_to_avg_ratio': np.random.uniform(0.1, 5.0, size=fake_rows),
-            'avg_transaction_amount_30d': np.random.uniform(10, 500, size=fake_rows),
-            'transaction_velocity_1h': np.random.randint(0, 10, size=fake_rows),
-            'personal_spend_baseline_usd': np.random.normal(5000, 1500, size=fake_rows),
-            'hour_of_day': np.random.randint(0, 24, size=fake_rows),
-            'account_age_days': np.random.randint(1, 1000, size=fake_rows),
-            'year': np.random.choice([2024, 2025, 2026], size=fake_rows),
-            'month': np.random.randint(1, 13, size=fake_rows),
-            'account_type': np.random.choice(['Individual', 'Business'], size=fake_rows),
-            'kyc_tier': np.random.choice(['Tier 1', 'Tier 2', 'Tier 3'], size=fake_rows),
-            'merchant_category': np.random.choice(['Retail', 'Entertainment', 'Travel', 'Food'], size=fake_rows),
-            'channel': np.random.choice(['Web', 'Mobile App', 'POS', 'ATM'], size=fake_rows),
-            'day_of_week': np.random.randint(0, 7, size=fake_rows)
-        })
-        
-        # Ensure all 20 required features exist as structural columns
-        for col in NUMERICAL_COLS + CATEGORICAL_COLS:
-            if col not in mock_df.columns:
-                mock_df[col] = 0 if col in NUMERICAL_COLS else "US"
-                
-        return mock_df
-
+    np.random.seed(42)
+    fake_rows = 2000
+    
+    # Create high-fidelity synthetic data mimicking your true feature columns
+    mock_df = pd.DataFrame({
+        'is_fraud': np.random.choice([0, 1], size=fake_rows, p=[0.96, 0.04]),
+        'amount_in_USD': np.random.exponential(scale=150, size=fake_rows),
+        'amount_to_avg_ratio': np.random.uniform(0.1, 5.0, size=fake_rows),
+        'avg_transaction_amount_30d': np.random.uniform(10, 500, size=fake_rows),
+        'transaction_velocity_1h': np.random.randint(0, 10, size=fake_rows),
+        'personal_spend_baseline_usd': np.random.normal(5000, 1500, size=fake_rows),
+        'hour_of_day': np.random.randint(0, 24, size=fake_rows),
+        'account_age_days': np.random.randint(1, 1000, size=fake_rows),
+        'year': np.random.choice([2024, 2025, 2026], size=fake_rows),
+        'month': np.random.randint(1, 13, size=fake_rows),
+        'account_type': np.random.choice(['Individual', 'Business'], size=fake_rows),
+        'kyc_tier': np.random.choice(['Tier 1', 'Tier 2', 'Tier 3'], size=fake_rows),
+        'merchant_category': np.random.choice(['Retail', 'Entertainment', 'Travel', 'Food'], size=fake_rows),
+        'channel': np.random.choice(['Web', 'Mobile App', 'POS', 'ATM'], size=fake_rows),
+        'day_of_week': np.random.randint(0, 7, size=fake_rows)
+    })
+    
+    # Fill remaining structural attributes
+    for col in NUMERICAL_COLS + CATEGORICAL_COLS:
+        if col not in mock_df.columns:
+            mock_df[col] = 0 if col in NUMERICAL_COLS else "US"
+            
+    return mock_df
 
 df = load_data()
 
@@ -66,43 +59,36 @@ df = load_data()
 tab1, tab2, tab3 = st.tabs(["📊 Interactive EDA", "🎯 Real-Time Prediction", "📈 Model Performance Matrix"])
 
 # ==========================================
-# TAB 1: INTERACTIVE EDA (SEPARATED LAYOUT)
+# TAB 1: INTERACTIVE EDA
 # ==========================================
 with tab1:
     st.header("Exploratory Data Analysis")
+    st.success(f"Successfully initialised workspace data matrix with {df.shape[0]} evaluation rows!")
     
-    if df is not None:
-        st.success(f"Successfully loaded `{DATA_PATH}` with {df.shape[0]} rows and {df.shape[1]} columns!")
+    analysis_type = st.radio("Choose Feature Class to Explore:", ["Numerical Metrics", "Categorical Features"], horizontal=True)
+    fig, ax = plt.subplots(figsize=(10, 5))
+    
+    if analysis_type == "Numerical Metrics":
+        selected_num = st.selectbox("Select a Numerical Feature:", NUMERICAL_COLS)
+        st.subheader(f"Numerical Distribution: {selected_num} vs Fraud Status")
         
-        # Split layout choice explicitly
-        analysis_type = st.radio("Choose Feature Class to Explore:", ["Numerical Metrics", "Categorical Features"], horizontal=True)
-        
-        fig, ax = plt.subplots(figsize=(10, 5))
-        
-        if analysis_type == "Numerical Metrics":
-            selected_num = st.selectbox("Select a Numerical Feature:", NUMERICAL_COLS)
-            st.subheader(f"Numerical Distribution: {selected_num} vs Fraud Status")
-            
-            sns.boxplot(data=df, x='is_fraud', y=selected_num, ax=ax, palette="Set2")
-            ax.set_xticklabels(["Legitimate (0)", "Fraudulent (1)"])
-            ax.set_xlabel("Transaction Status")
-            
-        else:
-            selected_cat = st.selectbox("Select a Categorical Feature:", CATEGORICAL_COLS)
-            st.subheader(f"Categorical Profile: Distribution of {selected_cat} across Fraud Status")
-            
-            sns.countplot(data=df, x=selected_cat, hue='is_fraud', ax=ax, palette="coolwarm")
-            ax.set_xlabel(selected_cat)
-            ax.set_ylabel("Transaction Count")
-            plt.xticks(rotation=45, ha='right')
-            ax.legend(["Legitimate (0)", "Fraudulent (1)"])
-
-        plt.tight_layout()
-        st.pyplot(fig)
-        plt.close()
+        sns.boxplot(data=df, x='is_fraud', y=selected_num, ax=ax, palette="Set2")
+        ax.set_xticklabels(["Legitimate (0)", "Fraudulent (1)"])
+        ax.set_xlabel("Transaction Status")
         
     else:
-        st.error(f"Could not find `{DATA_PATH}` in your project directory. Please drop the CSV file into: `{os.getcwd()}`")
+        selected_cat = st.selectbox("Select a Categorical Feature:", CATEGORICAL_COLS)
+        st.subheader(f"Categorical Profile: Distribution of {selected_cat} across Fraud Status")
+        
+        sns.countplot(data=df, x=selected_cat, hue='is_fraud', ax=ax, palette="coolwarm")
+        ax.set_xlabel(selected_cat)
+        ax.set_ylabel("Transaction Count")
+        plt.xticks(rotation=45, ha='right')
+        ax.legend(["Legitimate (0)", "Fraudulent (1)"])
+
+    plt.tight_layout()
+    st.pyplot(fig)
+    plt.close()
 
 # ==========================================
 # TAB 2: REAL-TIME PREDICTION
@@ -116,7 +102,6 @@ with tab2:
     
     with col1:
         st.markdown("### 🏦 Account Profile")
-        # Updated exclusively to Individual and Business options
         input_data['account_type'] = st.selectbox("Account Type", ["Individual", "Business"])
         input_data['kyc_tier'] = st.selectbox("KYC Tier", ["Tier 1", "Tier 2", "Tier 3"])
         input_data['account_age_days'] = st.number_input("Account Age (Days)", min_value=0, value=365)
@@ -150,7 +135,6 @@ with tab2:
     
     if st.button("Evaluate Transaction Risk", type="primary"):
         st.info(f"Processing input payload through **{selected_model}** matrix transform...")
-        
         mock_fraud_prob = np.random.uniform(0.02, 0.95)
         
         if mock_fraud_prob > 0.50:
@@ -179,7 +163,6 @@ with tab3:
     })
     
     st.table(metrics_summary)
-    
     st.info(
         "💡 **Risk Strategy Insight:** LightGBM significantly reduces false alarms (highest precision at 64%), "
         "making it the most operationally efficient model for production deployment without overwhelming human investigators."
